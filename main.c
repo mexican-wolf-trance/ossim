@@ -14,7 +14,7 @@
 
 int main( int argc, char **argv)
 {
-	int option, max_child = 5, max_time = 20;
+	int option, max_child = 5, max_time = 20, con_proc = 20, counter = 0;
 	char file[64], *exec[] = {"./exe", NULL};
 	pid_t child = 0;
 
@@ -50,12 +50,38 @@ int main( int argc, char **argv)
 	}
 
 	printf("You have chosen the following options: -c %d -f %s -t %d\n", max_child, file, max_time);
+	
+	if (con_proc > max_child)
+		con_proc = max_child;
+	
 
-	if ((child = fork()) == 0)
-		execvp(exec[0], exec);
-	else
+	while (max_child > 0)
 	{
-		printf("PARENT!\n");
-		while(wait(NULL) >0);
+		if (con_proc == counter)
+		{
+			wait(NULL);
+			counter--;
+		}
+		counter++;
+
+		if ((child = fork()) == 0)
+			execvp(exec[0], exec);
+
+		if (child < 0)
+		{
+			perror("Failed to fork");
+			exit(1);
+		}
+
+		if (waitpid(-1, NULL, WNOHANG) > 0)
+			counter--;
+		max_child--;
 	}
+	if (child > 0)
+	{
+			printf("PARENT!\n");
+			while(wait(NULL) >0);
+	}
+
+	printf("Finished\n");
 }
