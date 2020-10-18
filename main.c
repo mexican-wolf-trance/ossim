@@ -7,18 +7,18 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <sys/types>
+#include <sys/types.h>
 #include <signal.h>
 
 #define BUFSIZE 1024
 #define SEC_KEY 0x1234
 #define MSG_KEY 0x2345
 
-typedef struct msgbuf
+struct msgbuf
 {
 	long mtype;
-	char mtext[10];
-};
+	char mtext[100];
+} message;
 
 typedef struct Clock
 {
@@ -27,7 +27,6 @@ typedef struct Clock
 } Clock;
 
 int shmid, msgqid;
-struct msgbuf msgbuf;
 struct Clock *clock;
 
 void sigint(int sig)
@@ -35,13 +34,13 @@ void sigint(int sig)
 	if (msgctl(msgqid, IPC_RMID, 0) < 0)
 	{
 		perror("msgctl");
-		return 1;
+		exit(0);
 	}
 
         shmdt(clock);
         shmctl(shmid, IPC_RMID, NULL);
 
-	printf("\nYou did a CTRL C!\n");
+	printf("\nInterrupt!\n");
 	printf("Now killing the kiddos\n");
 	kill(0, SIGQUIT);
 	exit(0);
@@ -108,7 +107,11 @@ int main( int argc, char **argv)
 	}
 
 	printf("You have chosen the following options: -c %d -f %s -t %d\n", max_child, file, max_time);
-	
+
+        message.mtype = 1;
+	strcpy(message.mtext,"1");
+	msgsnd(msgqid, &message, sizeof(message), 0);	
+
 	if (con_proc > max_child)
 		con_proc = max_child;
 
@@ -151,6 +154,11 @@ int main( int argc, char **argv)
 
 	printf("Clock: %d\n", clock->sec);
 
+        if (msgctl(msgqid, IPC_RMID, 0) < 0)
+        {
+                perror("msgctl");
+                return 1;
+        }
 	shmdt(clock);
 	shmctl(shmid, IPC_RMID, NULL);
 

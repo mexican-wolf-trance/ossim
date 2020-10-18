@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <sys/types>
+#include <sys/types.h>
 #include <signal.h>
 
 #define SEC_KEY 0x1234
@@ -17,21 +18,22 @@ typedef struct Clock
         int nsec;
 } Clock;
 
-typedef struct msgbuf
+struct msgbuf
 {
         long mtype;
-        char mtext[10];
-};
+        char mtext[100];
+} message;
 
 
 int main()
 {
 	int shmid, msgqid;
-	struct Clock *clock, msgbuf msgbuf;
+	struct Clock *clock;
+
         msgqid = msgget(MSG_KEY, 0644 | IPC_CREAT);
         if (msgqid == -1)
         {
-                perror("shmid get failed");
+                perror("msgqid get failed");
                 return 1;
         }
 
@@ -50,7 +52,28 @@ int main()
                 return 1;
         }
 	
-	printf("Child clock seconds: %d\n", clock->sec);
-	sleep(2);
+//	msgrcv(msgqid, &message, sizeof(message), 1, 0);	
+	
+	while(strcmp(message.mtext, "1") != 0)
+	{	
+		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
+
+		if (strcmp(message.mtext, "1") == 0)
+		{
+			
+//			printf("Child clock seconds: %d\n", ++clock->sec);
+//			printf("Message from queue: %s\n", message.mtext);
+			printf("In the critical section!\n");
+			strcpy(message.mtext, "1");
+			sleep(2);
+			msgsnd(msgqid, &message, sizeof(message), 0);
+//			sleep(2);	
+			break;
+		}
+		printf("Waiting for my turn (%ld)...\n", (long) getpid());
+		printf("Child clock seconds: %d\n", ++clock->sec);
+		sleep(1);
+	}
+	printf("Child %ld is finished!\n", (long) getpid());
 }
 
