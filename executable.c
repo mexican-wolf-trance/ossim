@@ -15,7 +15,7 @@
 typedef struct Clock
 {
         int sec;
-        int nsec;
+        long nsec;
 } Clock;
 
 struct msgbuf

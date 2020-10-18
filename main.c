@@ -23,7 +23,7 @@ struct msgbuf
 typedef struct Clock
 {
 	int sec;
-	int nsec;
+	long nsec;
 } Clock;
 
 int shmid, msgqid;
@@ -40,8 +40,8 @@ void sigint(int sig)
         shmdt(clock);
         shmctl(shmid, IPC_RMID, NULL);
 
-	printf("\nInterrupt!\n");
-	printf("Now killing the kiddos\n");
+	write(1, "\nInterrupt!\n", 12);
+	write(1, "Now killing the kiddos\n", 23);
 	kill(0, SIGQUIT);
 	exit(0);
 }
@@ -114,6 +114,9 @@ int main( int argc, char **argv)
 
 	if (con_proc > max_child)
 		con_proc = max_child;
+
+	alarm(max_time);
+	signal(SIGALRM, sigint);
 
 	while (max_child > 0)
 	{
