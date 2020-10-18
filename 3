@@ -7,18 +7,10 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <sys/types>
 #include <signal.h>
 
 #define BUFSIZE 1024
 #define SEC_KEY 0x1234
-#define MSG_KEY 0x2345
-
-typedef struct msgbuf
-{
-	long mtype;
-	char mtext[10];
-};
 
 typedef struct Clock
 {
@@ -26,35 +18,13 @@ typedef struct Clock
 	int nsec;
 } Clock;
 
-int shmid, msgqid;
-struct msgbuf msgbuf;
-struct Clock *clock;
-
-void sigint(int sig)
-{
-	if (msgctl(msgqid, IPC_RMID, 0) < 0)
-	{
-		perror("msgctl");
-		return 1;
-	}
-
-        shmdt(clock);
-        shmctl(shmid, IPC_RMID, NULL);
-
-	printf("\nYou did a CTRL C!\n");
-	printf("Now killing the kiddos\n");
-	kill(0, SIGQUIT);
-	exit(0);
-}
-
 int main( int argc, char **argv)
 {
-	signal(SIGINT, sigint);
-
-	int option, max_child = 5, max_time = 20, con_proc = 15, counter = 0;
+	int shmid, option, max_child = 5, max_time = 20, con_proc = 20, counter = 0;
 	char file[64], *exec[] = {"./exe", NULL};
 	pid_t child = 0;
 
+	struct Clock *clock;
 	shmid = shmget(SEC_KEY, sizeof(Clock), 0644 | IPC_CREAT);
 	if (shmid == -1)
 	{
@@ -62,19 +32,12 @@ int main( int argc, char **argv)
 		return 1;
 	}
 
-	clock = (Clock *) shmat(shmid, NULL, 0);
+	clock = (Clock *) shmat(shmid, NULL, 0)
 	if (clock == (void *) -1)
 	{
-		perror("clock get failed");
+		perror("clock get failed")
 		return 1;
 	}
-
-	msgqid = msgget(MSG_KEY, 0644 | IPC_CREAT);
-        if (msgqid == -1)
-        {
-                perror("shmid get failed");
-                return 1;
-        }
 
 	if (argc < 2)
 	{
@@ -111,6 +74,7 @@ int main( int argc, char **argv)
 	
 	if (con_proc > max_child)
 		con_proc = max_child;
+	
 
 	while (max_child > 0)
 	{
@@ -140,19 +104,11 @@ int main( int argc, char **argv)
 	if (child > 0)
 	{
 			printf("PARENT!\n");
-			while (max_child > 0)
+			while(wait(NULL) > 0)
 			{
-				printf("Parent clock seconds: %d", clock->sec++);
-				max_child--;
-				sleep(1);
+				printf("Shhh, daddy is working right now\n");
 			}
-			while(wait(NULL) > 0);
 	}
-
-	printf("Clock: %d\n", clock->sec);
-
-	shmdt(clock);
-	shmctl(shmid, IPC_RMID, NULL);
 
 	printf("Finished\n");
 }
