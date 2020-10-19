@@ -24,7 +24,7 @@ struct msgbuf
 typedef struct Clock
 {
 	int sec;
-	long nsec;
+	long long nsec;
 	pid_t shmPID;
 } Clock;
 
@@ -49,11 +49,11 @@ void sigint(int sig)
 	exit(0);
 }
 
-int main( int argc, char **argv)
+int main (int argc, char **argv)
 {
 	signal(SIGINT, sigint);
 
-	int option, max_child = 5, max_time = 20, con_proc = 15, counter = 0;
+	int option, max_child = 5, max_time = 20, con_proc = 15, counter = 7, tot_proc = 0;
 	char file[64], *exec[] = {"./user", NULL};
 	pid_t child = 0;
 
@@ -132,6 +132,7 @@ int main( int argc, char **argv)
 
 		if ((child = fork()) == 0)
 		{
+			printf("Child fork!");
 			execvp(exec[0], exec);
 			perror("exec failed");
 		}
@@ -139,7 +140,7 @@ int main( int argc, char **argv)
 		if (child < 0)
 		{
 			perror("Failed to fork");
-			exit(1);
+			sigint(0);
 		}
 
 		if (waitpid(-1, NULL, WNOHANG) > 0)
@@ -148,9 +149,32 @@ int main( int argc, char **argv)
 	}
 	if (child > 0)
 	{
-			printf("PARENT!\n");
-//			while			
-			while(wait(NULL) > 0);
+		printf("PARENT!\n");
+		while(1)
+		{
+			msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
+			if (strcmp(message.mtext, "1") == 0)
+			{	
+				if(sim_clock->nsec > 1000000000)
+				{
+					printf("Clock check: %i seconds, %lli nanoseconds\n", sim_clock->sec, sim_clock->nsec);
+					sim_clock->sec++;
+					sim_clock->nsec = 0;
+				}
+				sim_clock->nsec++;
+				if(sim_clock->shmPID)
+				{
+					printf("%ld died", (long) sim_clock->shmPID);
+					tot_proc++;
+					sim_clock->shmPID = 0;
+				}
+				strcpy(message.mtext, "1");
+				msgsnd(msgqid, &message, sizeof(message), 0);
+				if(sim_clock->sec == 2 || tot_proc >= 100)
+					break;
+			}
+		}			
+//		while(wait(NULL) > 0);
 	}
 
 	printf("Clock: %d\n", sim_clock->sec);

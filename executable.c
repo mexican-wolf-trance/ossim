@@ -16,7 +16,7 @@
 typedef struct Clock
 {
         int sec;
-        long nsec;
+        long long nsec;
 	pid_t shmPID;
 } Clock;
 
@@ -29,9 +29,10 @@ struct msgbuf
 
 int main()
 {
-	int shmid, msgqid;
-	struct Clock *clock;
-//	clock_t time;
+	int shmid, msgqid, time_flag = 0;
+	long long duration = 0, current_time = 0;
+	struct Clock *sim_clock;
+	time_t t;
 	
         msgqid = msgget(MSG_KEY, 0644 | IPC_CREAT);
         if (msgqid == -1)
@@ -48,33 +49,52 @@ int main()
                 return 1;
         }
 
-        clock = (Clock *) shmat(shmid, NULL, 0);
-        if (clock == (void *) -1)
+        sim_clock = (Clock *) shmat(shmid, NULL, 0);
+        if (sim_clock == (void *) -1)
         {
                 perror("clock get failed");
                 return 1;
-        }	
-	
-	while(strcmp(message.mtext, "1") != 0)
+        }
+
+	srand((int)time(&t) % getpid());
+	duration = (rand() % 50000000);	
+	printf("CHILD! Duration: %lli\n", duration);	
+	while(1)
 	{	
 		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
-
-		if (strcmp(message.mtext, "1") == 0)
-		{
-			
+		if (strcmp(message.mtext, "1") == 0)		
+		{		
 //			printf("Child clock seconds: %d\n", ++clock->sec);
 //			printf("Message from queue: %s\n", message.mtext);
-			printf("In the critical section!\n");
-			strcpy(message.mtext, "1");
-			sleep(2);
-			msgsnd(msgqid, &message, sizeof(message), 0);
-//			sleep(2);	
-			break;
+//			printf("In the critical section!\n");
+			if (!time_flag)
+			{
+				current_time = sim_clock->sec*1000000000 + sim_clock->nsec;
+				printf("Current time: %lli; Plus duration: %lli\n", current_time, (current_time + duration));
+				time_flag = 1;
+			}
+			if ((current_time + duration) <= (sim_clock->sec*1000000000 + sim_clock->nsec))
+			{ 	
+				if(!sim_clock->shmPID)
+				{
+					sim_clock->shmPID = getpid();
+					strcpy(message.mtext, "1");
+					msgsnd(msgqid, &message, sizeof(message), 0);
+					break;
+				}
+				else
+				{
+					strcpy(message.mtext, "1");
+//					sleep(2);
+					msgsnd(msgqid, &message, sizeof(message), 0);
+//					sleep(2);
+				}	
+			}
 		}
-		printf("Waiting for my turn (%ld)...\n", (long) getpid());
-		printf("Child clock seconds: %d\n", ++clock->sec);
-		sleep(1);
+//		printf("Waiting for my turn (%ld)...\n", (long) getpid());
+//		printf("Child clock seconds: %d\n", ++clock->sec);
+//		sleep(1);
 	}
-	printf("Child %ld is finished!\n", (long) getpid());
+	printf("Child %ld is finished at %d seconds and %lli nanoseconds!\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
 }
 
