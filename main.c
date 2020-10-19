@@ -34,6 +34,7 @@ struct Clock *sim_clock;
 
 void sigint(int sig)
 {
+	printf("\nTime ended: %d seconds, %lli nanoseconds\n", sim_clock->sec, sim_clock->nsec);
 	if (msgctl(msgqid, IPC_RMID, 0) < 0)
 	{
 		perror("msgctl");
@@ -53,9 +54,10 @@ int main (int argc, char **argv)
 {
 	signal(SIGINT, sigint);
 
-	int option, max_child = 5, max_time = 20, con_proc = 15, counter = 7, tot_proc = 0;
+	int option, max_child = 5, max_time = 20, con_proc = 7, counter = 0, tot_proc = 0;
 	char file[64], *exec[] = {"./user", NULL};
 	pid_t child = 0;
+	FILE *fp;
 
 	shmid = shmget(SEC_KEY, sizeof(Clock), 0644 | IPC_CREAT);
 	if (shmid == -1)
@@ -77,6 +79,8 @@ int main (int argc, char **argv)
                 perror("shmid get failed");
                 return 1;
         }
+
+	sim_clock->shmPID = 0;
 
 	if (argc < 2)
 	{
@@ -132,7 +136,6 @@ int main (int argc, char **argv)
 
 		if ((child = fork()) == 0)
 		{
-			printf("Child fork!");
 			execvp(exec[0], exec);
 			perror("exec failed");
 		}
@@ -148,23 +151,30 @@ int main (int argc, char **argv)
 		max_child--;
 	}
 	if (child > 0)
-	{
+	{	
+		if ((fp = fopen("log.out", "w")) == 0)
+		{
+			perror("log.out");
+			sigint(0);
+		}
 		printf("PARENT!\n");
 		while(1)
 		{
 			msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
 			if (strcmp(message.mtext, "1") == 0)
 			{	
-				if(sim_clock->nsec > 1000000000)
+				if(sim_clock->nsec >= 1000000000)
 				{
-					printf("Clock check: %i seconds, %lli nanoseconds\n", sim_clock->sec, sim_clock->nsec);
 					sim_clock->sec++;
 					sim_clock->nsec = 0;
+                                        printf("Clock check: %i seconds, %lli nanoseconds\n", sim_clock->sec, sim_clock->nsec);
+
 				}
-				sim_clock->nsec++;
+				sim_clock->nsec += 100;
 				if(sim_clock->shmPID)
 				{
-					printf("%ld died", (long) sim_clock->shmPID);
+					fprintf(fp, "%s %ld %s %i%s%lli %s", "Child pid", (long) sim_clock->shmPID, "is terminating at system time", sim_clock->sec, ".", sim_clock->nsec, "\n");
+					printf("%ld died at %i seconds and %lli nanoseconds\n", (long) sim_clock->shmPID, sim_clock->sec, sim_clock->nsec);
 					tot_proc++;
 					sim_clock->shmPID = 0;
 				}
@@ -173,11 +183,11 @@ int main (int argc, char **argv)
 				if(sim_clock->sec == 2 || tot_proc >= 100)
 					break;
 			}
-		}			
-//		while(wait(NULL) > 0);
+		}
+		fclose(fp);			
 	}
 
-	printf("Clock: %d\n", sim_clock->sec);
+	printf("Clock: %d:%lli\n", sim_clock->sec, sim_clock->nsec);
 
         if (msgctl(msgqid, IPC_RMID, 0) < 0)
         {

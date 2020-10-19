@@ -63,14 +63,10 @@ int main()
 	{	
 		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
 		if (strcmp(message.mtext, "1") == 0)		
-		{		
-//			printf("Child clock seconds: %d\n", ++clock->sec);
-//			printf("Message from queue: %s\n", message.mtext);
-//			printf("In the critical section!\n");
+		{
 			if (!time_flag)
 			{
 				current_time = sim_clock->sec*1000000000 + sim_clock->nsec;
-				printf("Current time: %lli; Plus duration: %lli\n", current_time, (current_time + duration));
 				time_flag = 1;
 			}
 			if ((current_time + duration) <= (sim_clock->sec*1000000000 + sim_clock->nsec))
@@ -85,16 +81,11 @@ int main()
 				else
 				{
 					strcpy(message.mtext, "1");
-//					sleep(2);
 					msgsnd(msgqid, &message, sizeof(message), 0);
-//					sleep(2);
 				}	
 			}
 		}
-//		printf("Waiting for my turn (%ld)...\n", (long) getpid());
-//		printf("Child clock seconds: %d\n", ++clock->sec);
-//		sleep(1);
 	}
-	printf("Child %ld is finished at %d seconds and %lli nanoseconds!\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
+//	printf("Child %ld is finished at %d seconds and %lli nanoseconds!\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
 }
 
