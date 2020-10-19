@@ -9,6 +9,7 @@
 #include <sys/msg.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <time.h>
 
 #define BUFSIZE 1024
 #define SEC_KEY 0x1234
@@ -24,10 +25,12 @@ typedef struct Clock
 {
 	int sec;
 	long nsec;
+	pid_t shmPID;
 } Clock;
 
 int shmid, msgqid;
-struct Clock *clock;
+struct Clock *sim_clock;
+
 
 void sigint(int sig)
 {
@@ -37,7 +40,7 @@ void sigint(int sig)
 		exit(0);
 	}
 
-        shmdt(clock);
+        shmdt(sim_clock);
         shmctl(shmid, IPC_RMID, NULL);
 
 	write(1, "\nInterrupt!\n", 12);
@@ -51,7 +54,7 @@ int main( int argc, char **argv)
 	signal(SIGINT, sigint);
 
 	int option, max_child = 5, max_time = 20, con_proc = 15, counter = 0;
-	char file[64], *exec[] = {"./exe", NULL};
+	char file[64], *exec[] = {"./user", NULL};
 	pid_t child = 0;
 
 	shmid = shmget(SEC_KEY, sizeof(Clock), 0644 | IPC_CREAT);
@@ -61,8 +64,8 @@ int main( int argc, char **argv)
 		return 1;
 	}
 
-	clock = (Clock *) shmat(shmid, NULL, 0);
-	if (clock == (void *) -1)
+	sim_clock = (Clock *) shmat(shmid, NULL, 0);
+	if (sim_clock == (void *) -1)
 	{
 		perror("clock get failed");
 		return 1;
@@ -146,23 +149,18 @@ int main( int argc, char **argv)
 	if (child > 0)
 	{
 			printf("PARENT!\n");
-			while (max_child > 0)
-			{
-				printf("Parent clock seconds: %d", clock->sec++);
-				max_child--;
-				sleep(1);
-			}
+//			while			
 			while(wait(NULL) > 0);
 	}
 
-	printf("Clock: %d\n", clock->sec);
+	printf("Clock: %d\n", sim_clock->sec);
 
         if (msgctl(msgqid, IPC_RMID, 0) < 0)
         {
                 perror("msgctl");
                 return 1;
         }
-	shmdt(clock);
+	shmdt(sim_clock);
 	shmctl(shmid, IPC_RMID, NULL);
 
 	printf("Finished\n");

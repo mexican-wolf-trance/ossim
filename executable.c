@@ -8,6 +8,7 @@
 #include <sys/msg.h>
 #include <sys/types.h>
 #include <signal.h>
+#include <time.h>
 
 #define SEC_KEY 0x1234
 #define MSG_KEY 0x2345
@@ -16,6 +17,7 @@ typedef struct Clock
 {
         int sec;
         long nsec;
+	pid_t shmPID;
 } Clock;
 
 struct msgbuf
@@ -29,7 +31,8 @@ int main()
 {
 	int shmid, msgqid;
 	struct Clock *clock;
-
+//	clock_t time;
+	
         msgqid = msgget(MSG_KEY, 0644 | IPC_CREAT);
         if (msgqid == -1)
         {
@@ -50,9 +53,7 @@ int main()
         {
                 perror("clock get failed");
                 return 1;
-        }
-	
-//	msgrcv(msgqid, &message, sizeof(message), 1, 0);	
+        }	
 	
 	while(strcmp(message.mtext, "1") != 0)
 	{	

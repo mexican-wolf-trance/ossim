@@ -1,7 +1,7 @@
 C = gcc
 CFLAGS = -Wall -g -std=gnu99
 TARGET = oss
-TARGET2 = exe
+TARGET2 = user
 OBJ1 = main.o
 OBJ2 = executable.o
 all: $(TARGET) $(TARGET2)
