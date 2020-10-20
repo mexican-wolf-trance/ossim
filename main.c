@@ -31,6 +31,7 @@ typedef struct Clock
 
 int shmid, msgqid;
 struct Clock *sim_clock;
+FILE *fp;
 
 
 void sigint(int sig)
@@ -44,6 +45,8 @@ void sigint(int sig)
 
         shmdt(sim_clock);
         shmctl(shmid, IPC_RMID, NULL);
+	if(fp)
+		fclose(fp);
 
 	write(1, "Interrupt!\n", 12);
 	write(1, "Now killing the kiddos\n", 23);
@@ -58,7 +61,6 @@ int main (int argc, char **argv)
 	int option, max_child = 5, max_time = 20, con_proc = 7, counter = 0, tot_proc = 0;
 	char file[64], *exec[] = {"./user", NULL};
 	pid_t child = 0;
-	FILE *fp;
 
 	shmid = shmget(SEC_KEY, sizeof(Clock), 0644 | IPC_CREAT);
 	if (shmid == -1)
@@ -213,11 +215,10 @@ int main (int argc, char **argv)
 //				}
 
 				fprintf(fp, "%s %li %s %i%s%lli%s", "Creating new child pid", (long) getpid(), "at my time", sim_clock->sec, ".", sim_clock->nsec, "\n");
-       	                	printf("Creating new child pid %li at my time %i.%lli\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
+//    	                	printf("Creating new child pid %li at my time %i.%lli\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
 
 				sim_clock->shmPID = 0;
 				counter--;
-
 			}
 			if (sim_clock->nsec == 1000000000)
 			{
@@ -229,31 +230,40 @@ int main (int argc, char **argv)
 			if(((sim_clock->sec == 2) || (tot_proc == 100)))
 				break;
 	
+//			strcpy(message.mtext, "1");
+//               	msgsnd(msgqid, &message, sizeof(message), 0);
+		
+			if ((con_proc != counter) && (max_child > 0))
+			{
+				if ((child = fork()) == 0)
+				{
+//					fprintf(fp, "%s %li %s %i%s%lli%s", "Creating new child pid", (long) getpid(), "at my time", sim_clock->sec, ".", sim_clock->nsec, "\n");
+					printf("Creating new child pid %li at my time %i.%lli\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
+		                        execvp(exec[0], exec);
+		                        perror("exec failed");
+				}
+	
+				if (child < 0)
+				{
+					perror("Failed to fork");
+					sigint(0);
+				}
+				counter++;
+				max_child--;
+	                }
+//			if (counter == con_proc)
+//			{
+//				counter--;
+//				wait(NULL);
+//			}
 			strcpy(message.mtext, "1");
-                	msgsnd(msgqid, &message, sizeof(message), 0);
-		}
-		if ((con_proc != counter) && (max_child > 0))
-		{
-			if ((child == fork()) == 0)
-			{
-//				fprintf(fp, "%s %li %s %i%s%lli%s", "Creating new child pid", (long) getpid(), "at my time", sim_clock->sec, ".", sim_clock->nsec, "\n");
-//				printf("Creating new child pid %li at my time %i.%lli\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
-	                        execvp(exec[0], exec);
-	                        perror("exec failed");
-			}
+                        msgsnd(msgqid, &message, sizeof(message), 0);
 
-			if (child < 0)
-			{
-				perror("Failed to fork");
-				sigint(0);
-			}
-			counter++;
-			max_child--;
-                }
+		}
 	}
 	if (child > 0)
 	{
-		printf("PARENT!");
+		printf("PARENT!\n");
 		while(wait(NULL) != -1 || errno != ECHILD);
 	}
 	fclose(fp);
