@@ -164,7 +164,7 @@ int main (int argc, char **argv)
 				sim_clock->sec++;
 				sim_clock->nsec = 0;
 			}
-			sim_clock->nsec += 500;
+			sim_clock->nsec += 1000;
 			
 			if((sim_clock->sec == 2) || (tot_proc == 100) || (max_child == 0))
 			{
@@ -197,8 +197,8 @@ int main (int argc, char **argv)
 	if(sim_clock->sec == 2)
 		printf("Clock finish! Two system seconds have passed! Check the log for details\n");
 	if(tot_proc == 100)
-		printf("100 Processes reach!Check the log for details.\n");
-	if(max_child == 0);
+		printf("100 Processes reach! Check the log for details.\n");
+	if(max_child == 0)
 		printf("All proccess finished! Check the log for details.\n");
 	printf("Time: %i.%lli, Processes: %d\n", sim_clock->sec, sim_clock->nsec, tot_proc);
         if (msgctl(msgqid, IPC_RMID, 0) < 0)
