@@ -58,7 +58,7 @@ int main()
 
 	srand((int)time(&t) % getpid());
 	duration = (rand() % 50000000);	
-	printf("CHILD! Duration: %lli\n", duration);	
+//	printf("CHILD! Duration: %lli\n", duration);	
 	while(1)
 	{	
 		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
