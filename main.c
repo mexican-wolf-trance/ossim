@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
@@ -44,7 +45,7 @@ void sigint(int sig)
         shmdt(sim_clock);
         shmctl(shmid, IPC_RMID, NULL);
 
-	write(1, "\nInterrupt!\n", 12);
+	write(1, "Interrupt!\n", 12);
 	write(1, "Now killing the kiddos\n", 23);
 	kill(0, SIGQUIT);
 	exit(0);
@@ -125,6 +126,7 @@ int main (int argc, char **argv)
 	alarm(max_time);
 	signal(SIGALRM, sigint);
 
+/*
 	while (max_child > 0)
 	{
 		if (con_proc == counter)
@@ -186,8 +188,76 @@ int main (int argc, char **argv)
 		}
 		fclose(fp);			
 	}
+*/
+	if ((fp = fopen("log.out", "w")) == 0)
+	{
+                perror("log.out");
+                sigint(0);
+        }
 
-	printf("Clock: %d:%lli\n", sim_clock->sec, sim_clock->nsec);
+	while(1)
+	{
+		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
+		if (strcmp(message.mtext, "1") == 0)
+		{
+			if (sim_clock->shmPID)
+			{
+				fprintf(fp, "%s %ld %s %i%s%lli %s", "Child pid", (long) sim_clock->shmPID, "is terminating at system time", sim_clock->sec, ".", sim_clock->nsec, "\n");
+				printf("%ld died at %i seconds and %lli nanoseconds\n", (long) sim_clock->shmPID, sim_clock->sec, sim_clock->nsec);
+				tot_proc++;
+				wait(NULL);
+//				if (waitpid(-sim_clock->shmPID, NULL, WNOHANG) < 0);
+//				{
+//					perror("Waitpid");
+//					sigint(0);
+//				}
+
+				fprintf(fp, "%s %li %s %i%s%lli%s", "Creating new child pid", (long) getpid(), "at my time", sim_clock->sec, ".", sim_clock->nsec, "\n");
+       	                	printf("Creating new child pid %li at my time %i.%lli\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
+
+				sim_clock->shmPID = 0;
+				counter--;
+
+			}
+			if (sim_clock->nsec == 1000000000)
+			{
+				sim_clock->sec++;
+				sim_clock->nsec = 0;
+			}
+			sim_clock->nsec += 100;
+			
+			if(((sim_clock->sec == 2) || (tot_proc == 100)))
+				break;
+	
+			strcpy(message.mtext, "1");
+                	msgsnd(msgqid, &message, sizeof(message), 0);
+		}
+		if ((con_proc != counter) && (max_child > 0))
+		{
+			if ((child == fork()) == 0)
+			{
+//				fprintf(fp, "%s %li %s %i%s%lli%s", "Creating new child pid", (long) getpid(), "at my time", sim_clock->sec, ".", sim_clock->nsec, "\n");
+//				printf("Creating new child pid %li at my time %i.%lli\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
+	                        execvp(exec[0], exec);
+	                        perror("exec failed");
+			}
+
+			if (child < 0)
+			{
+				perror("Failed to fork");
+				sigint(0);
+			}
+			counter++;
+			max_child--;
+                }
+	}
+	if (child > 0)
+	{
+		printf("PARENT!");
+		while(wait(NULL) != -1 || errno != ECHILD);
+	}
+	fclose(fp);
+	printf("Clock: %d.%lli\n", sim_clock->sec, sim_clock->nsec);
 
         if (msgctl(msgqid, IPC_RMID, 0) < 0)
         {
@@ -198,4 +268,5 @@ int main (int argc, char **argv)
 	shmctl(shmid, IPC_RMID, NULL);
 
 	printf("Finished\n");
+	kill(0, SIGQUIT);
 }
