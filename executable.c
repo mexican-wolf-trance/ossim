@@ -13,6 +13,7 @@
 #define SEC_KEY 0x1234
 #define MSG_KEY 0x2345
 
+//Initialize the shared clock and message queue
 typedef struct Clock
 {
         int sec;
@@ -34,6 +35,7 @@ int main()
 	struct Clock *sim_clock;
 	time_t t;
 	
+	//Get the keys to the queue and shared memory	
         msgqid = msgget(MSG_KEY, 0644 | IPC_CREAT);
         if (msgqid == -1)
         {
@@ -48,7 +50,8 @@ int main()
                 perror("shmid get failed");
                 return 1;
         }
-
+	
+	//Access the shared clock
         sim_clock = (Clock *) shmat(shmid, NULL, 0);
         if (sim_clock == (void *) -1)
         {
@@ -56,9 +59,12 @@ int main()
                 return 1;
         }
 
+	//Seed the random number generator and grab a number between 0 and 50,000,000)
 	srand((int)time(&t) % getpid());
 	duration = (rand() % 50000000);	
-//	printf("CHILD! Duration: %lli\n", duration);	
+	
+	//The main show: Check the queue, get in the critical section, and check the clock until
+	//the random time duration expires
 	while(1)
 	{	
 		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
@@ -86,6 +92,5 @@ int main()
 			}
 		}
 	}
-//	printf("Child %ld is finished at %d seconds and %lli nanoseconds!\n", (long) getpid(), sim_clock->sec, sim_clock->nsec);
 }
 

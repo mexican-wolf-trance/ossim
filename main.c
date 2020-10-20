@@ -16,6 +16,7 @@
 #define SEC_KEY 0x1234
 #define MSG_KEY 0x2345
 
+//Initialize the message and clock structs!
 struct msgbuf
 {
 	long mtype;
@@ -29,9 +30,11 @@ typedef struct Clock
 	pid_t shmPID;
 } Clock;
 
+//I intitalize the ids and the clock pointer here so my signal handler can use them
 int shmid, msgqid;
 struct Clock *sim_clock;
 
+//The signal handler! Couldn't figure out how to close the file stream before getting signal though
 void sigint(int sig)
 {
 	printf("\nTime ended: %d seconds, %lli nanoseconds\n", sim_clock->sec, sim_clock->nsec);
@@ -50,44 +53,51 @@ void sigint(int sig)
 	exit(0);
 }
 
+
+//The main function
 int main (int argc, char **argv)
 {
+	//The CTRL C catch
 	signal(SIGINT, sigint);
 
 	int option, max_child = 5, max_time = 20, con_proc = 20, counter = 0, tot_proc = 0;
 	char file[64], *exec[] = {"./user", NULL};
 	pid_t child = 0;
 	FILE *fp;
-
+	
+	//Get my shared memory and message queue keys
 	shmid = shmget(SEC_KEY, sizeof(Clock), 0644 | IPC_CREAT);
 	if (shmid == -1)
 	{
 		perror("shmid get failed");
 		return 1;
 	}
-
+	
+	//Put the clock in shared memory
 	sim_clock = (Clock *) shmat(shmid, NULL, 0);
 	if (sim_clock == (void *) -1)
 	{
 		perror("clock get failed");
 		return 1;
 	}
-
+	
+	//Message queue key
 	msgqid = msgget(MSG_KEY, 0644 | IPC_CREAT);
         if (msgqid == -1)
         {
-                perror("shmid get failed");
+                perror("msgqid get failed");
                 return 1;
         }
 
 	sim_clock->shmPID = 0;
-
+	//Parse the argmuents!
 	if (argc < 2)
 	{
 		printf("Invalid usage! Check the readme\nUsage: oss [-c x] [-f filename] [-t time]\n"); 
 		return 0;
 	}
-
+	
+	//Getopt is great!
 	while ((option = getopt(argc, argv, "hc:f:t:")) != -1)
 	switch (option)
 	{
@@ -114,25 +124,29 @@ int main (int argc, char **argv)
 	}
 
 	printf("You have chosen the following options: -c %d -f %s -t %d\n", max_child, file, max_time);
-
+	//Begin the message queue by putting a message in it
         message.mtype = 1;
 	strcpy(message.mtext,"1");
 	msgsnd(msgqid, &message, sizeof(message), 0);	
-
+	//Don't want more concurrent process than maximum processes
 	if (con_proc > max_child)
 		con_proc = max_child;
 
+	//Begin the alarm. Goes off after the -t amount of time expires
 	alarm(max_time);
 	signal(SIGALRM, sigint);
 
+	//Open the log file
 	if ((fp = fopen("log.out", "w")) == 0)
 	{
                perror("log.out");
                 sigint(0);
         }
-
+	
+	//Now we start the main show
 	while(1)
 	{
+		//Check the message queue. If a 1 exists, take it, and enter the critical section
 		msgrcv(msgqid, &message, sizeof(message), 1, IPC_NOWAIT);
 		if (strcmp(message.mtext, "1") == 0)
 		{
